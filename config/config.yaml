@@ -1,0 +1,4 @@
+whi_land_marker:
+  ros__parameters:
+    qr_avg_count: 5
+    cam_frame_id: cam
