@@ -19,7 +19,11 @@ Changelog:
 
 #include <rclcpp/rclcpp.hpp>
 #include <std_srvs/srv/set_bool.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <rtabmap_msgs/msg/landmark_detection.hpp>
+
+#include <condition_variable>
+#include <mutex>
 
 namespace whi_land_marker
 {
@@ -36,8 +40,10 @@ namespace whi_land_marker
 
     protected:
         void init();
-        bool onServiceDetect(const std::shared_ptr<std_srvs::srv::SetBool::Request> Request,
-	        std::shared_ptr<std_srvs::srv::SetBool::Response> Response);
+        bool onServiceDetect(const std::shared_ptr<std_srvs::srv::Trigger::Request> Request,
+	        std::shared_ptr<std_srvs::srv::Trigger::Response> Response);
+        void execute(std::shared_ptr<std_srvs::srv::Trigger::Response> Response);
+        bool activateMarkDetection(bool Flag);
 
     protected:
         std::shared_ptr<rclcpp::Node> node_handle_{ nullptr };
@@ -46,11 +52,18 @@ namespace whi_land_marker
         // service client
         rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr client_activate_{ nullptr };
         rclcpp::Client<whi_interfaces::srv::WhiSrvQrcode>::SharedPtr client_qr_code_{ nullptr };
+        rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr client_ptz_home_{ nullptr };
         // service
-        rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr service_{ nullptr };
+        rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr service_{ nullptr };
 
         // params
         int qr_avg_count_{ 5 };
         std::string cam_frame_id_{ "cam" };
+        double wait_during_ptz_service_{ 1.0 };
+
+        // synchronizing logic
+        std::mutex mtx_;
+        std::condition_variable cv_;
+        bool activated_{ false };
 	};
 } // namespace whi_land_marker

@@ -2,3 +2,5 @@ whi_land_marker:
   ros__parameters:
     qr_avg_count: 5
     cam_frame_id: cam
+    ptz_home_service: /ptz_home
+    wait_durining_ptz_available: 1.0 # in second
