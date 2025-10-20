@@ -88,7 +88,7 @@ namespace whi_land_marker
                     auto response = result.get(); // only once
                     if (!response->success)
                     {
-                        RCLCPP_WARN_STREAM(this->node_handle_->get_logger(), "\033[1;33m" <<
+                        RCLCPP_WARN_STREAM(node_handle_->get_logger(), "\033[1;33m" <<
                             "failed to activate QR code detection" << "\033[0m");
                     }
                 }
@@ -120,7 +120,7 @@ namespace whi_land_marker
                 }
                 else
                 {
-                    RCLCPP_WARN_STREAM(this->node_handle_->get_logger(), "\033[1;33m" <<
+                    RCLCPP_WARN_STREAM(node_handle_->get_logger(), "\033[1;33m" <<
                         "failed to estimate QR code pose" << "\033[0m");
                 }
             }
@@ -171,7 +171,7 @@ namespace whi_land_marker
                 }
                 else
                 {
-                    RCLCPP_WARN_STREAM(this->node_handle_->get_logger(), "\033[1;33m" <<
+                    RCLCPP_WARN_STREAM(node_handle_->get_logger(), "\033[1;33m" <<
                         "failed to activate QR code detection" << "\033[0m");
                 }
             }
