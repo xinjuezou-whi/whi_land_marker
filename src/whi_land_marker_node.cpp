@@ -34,7 +34,7 @@ void signalHandler(int Signal)
 int main(int argc, char** argv)
 {
 	/// node version and copyright announcement
-	std::cout << "\nWHI land markder VERSION 00.00.4" << std::endl;
+	std::cout << "\nWHI land markder VERSION 00.00.5" << std::endl;
 	std::cout << "Copyright © 2025-2026 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
 
 	/// ros infrastructure

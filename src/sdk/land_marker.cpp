@@ -68,7 +68,9 @@ namespace whi_land_marker
         transform_to_.transform.rotation = tf2::toMsg(q);
 
         // publishers
-        pub_rtab_landmark_ = node_handle_->create_publisher<rtabmap_msgs::msg::LandmarkDetection>("landmark", 10);
+        node_handle_->declare_parameter<std::string>("landmark_topic", "landmark");
+        auto landmarkTopic = node_handle_->get_parameter("landmark_topic").as_string();
+        pub_rtab_landmark_ = node_handle_->create_publisher<rtabmap_msgs::msg::LandmarkDetection>(landmarkTopic, 10);
 
         // service clients
         rclcpp::NodeOptions options;
@@ -123,7 +125,8 @@ namespace whi_land_marker
                 auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
 
                 auto result = client_ptz_home_->async_send_request(request);
-                if (rclcpp::spin_until_future_complete(node_client_handle_, result, std::chrono::seconds(5)) == rclcpp::FutureReturnCode::SUCCESS)
+                if (rclcpp::spin_until_future_complete(node_client_handle_, result,
+                    std::chrono::duration<double>(wait_during_ptz_service_)) == rclcpp::FutureReturnCode::SUCCESS)
                 {
                     auto response = result.get(); // only once
                     if (!response->success)
