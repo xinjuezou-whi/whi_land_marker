@@ -20,6 +20,7 @@ Changelog:
 #include <rclcpp/rclcpp.hpp>
 #include <std_srvs/srv/set_bool.hpp>
 #include <std_srvs/srv/trigger.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <rtabmap_msgs/msg/landmark_detection.hpp>
 
 namespace whi_land_marker
@@ -58,5 +59,7 @@ namespace whi_land_marker
         int qr_avg_count_{ 5 };
         std::string cam_frame_id_{ "cam" };
         double wait_during_ptz_service_{ 1.0 };
+        geometry_msgs::msg::TransformStamped rotation_to_;
+        geometry_msgs::msg::TransformStamped transform_to_;
 	};
 } // namespace whi_land_marker

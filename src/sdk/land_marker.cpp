@@ -13,6 +13,9 @@ All text above must be included in any redistribution.
 ******************************************************************/
 #include "whi_land_marker/land_marker.h"
 
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <angles/angles.h>
+
 #include <thread>
 
 namespace whi_land_marker
@@ -36,6 +39,33 @@ namespace whi_land_marker
         cam_frame_id_ = node_handle_->get_parameter("cam_frame_id").as_string();
         node_handle_->declare_parameter<double>("wait_durining_ptz_available", wait_during_ptz_service_);
         wait_during_ptz_service_ = node_handle_->get_parameter("wait_durining_ptz_available").as_double();
+        // rotation to camera
+        node_handle_->declare_parameter<std::vector<double>>("rotation_to_camera", std::vector<double>());
+        std::vector<double> rotationToCam = node_handle_->get_parameter("rotation_to_camera").as_double_array();
+        if (rotationToCam.size() < 3)
+        {
+            rotationToCam.resize(3, 0.0);
+        }
+        rotation_to_.transform.translation.x = 0.0;
+        rotation_to_.transform.translation.y = 0.0;
+        rotation_to_.transform.translation.z = 0.0;
+        tf2::Quaternion q;
+        q.setRPY(angles::from_degrees(rotationToCam[0]), angles::from_degrees(rotationToCam[1]),
+            angles::from_degrees(rotationToCam[2]));
+        rotation_to_.transform.rotation = tf2::toMsg(q);
+        // transform to
+        node_handle_->declare_parameter<std::vector<double>>("transform_to", std::vector<double>());
+        std::vector<double> transformTo = node_handle_->get_parameter("transform_to").as_double_array();
+        if (transformTo.size() < 6)
+        {
+            transformTo.resize(6, 0.0);
+        }
+        transform_to_.transform.translation.x = transformTo[0];
+        transform_to_.transform.translation.y = transformTo[1];
+        transform_to_.transform.translation.z = transformTo[2];
+        q.setRPY(angles::from_degrees(transformTo[3]), angles::from_degrees(transformTo[4]),
+            angles::from_degrees(transformTo[5]));
+        transform_to_.transform.rotation = tf2::toMsg(q);
 
         // publishers
         pub_rtab_landmark_ = node_handle_->create_publisher<rtabmap_msgs::msg::LandmarkDetection>("landmark", 10);
@@ -63,6 +93,16 @@ namespace whi_land_marker
         return Response->success;
     }
 
+    static geometry_msgs::msg::Pose applyTransform(const geometry_msgs::msg::Pose& Src,
+        const geometry_msgs::msg::TransformStamped& Transform)
+    {
+        // apply the transform to the pose
+        geometry_msgs::msg::Pose transformed;
+        tf2::doTransform(Src, transformed, Transform);
+
+        return transformed;
+    }
+
     bool LandMarker::execute()
     {
         // check if the ptz_home service is active
@@ -83,7 +123,7 @@ namespace whi_land_marker
                 auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
 
                 auto result = client_ptz_home_->async_send_request(request);
-                if (rclcpp::spin_until_future_complete(node_client_handle_, result) == rclcpp::FutureReturnCode::SUCCESS)
+                if (rclcpp::spin_until_future_complete(node_client_handle_, result, std::chrono::seconds(5)) == rclcpp::FutureReturnCode::SUCCESS)
                 {
                     auto response = result.get(); // only once
                     if (!response->success)
@@ -135,15 +175,44 @@ namespace whi_land_marker
             msg.header.frame_id = cam_frame_id_;
             msg.id = id;
             msg.landmark_frame_id = std::string();
-            msg.pose.pose = offset.pose;
             msg.pose.covariance.fill(0.0);
 
-            pub_rtab_landmark_->publish(msg);
-
             RCLCPP_INFO_STREAM(node_handle_->get_logger(), "\033[1;32m" <<
-                "sucessfully get the transform from QR code to " << cam_frame_id_ << ", translation: [" << msg.pose.pose.position.x <<
-                ", " << msg.pose.pose.position.y << ", " << msg.pose.pose.position.z << "], eulers[" << eulers[0] <<
+                "sucessfully get the transform from QR code to camera, translation: [" << offset.pose.position.x <<
+                ", " << offset.pose.position.y << ", " << offset.pose.position.z << "], eulers[" << eulers[0] <<
                 ", " << eulers[1] << ", " << eulers[2] << "]" << "\033[0m");
+
+            // align to camera first
+            msg.pose.pose = applyTransform(offset.pose, rotation_to_);
+            tf2::Quaternion qAligned(msg.pose.pose.orientation.x,
+                 msg.pose.pose.orientation.y,
+                 msg.pose.pose.orientation.z,
+                 msg.pose.pose.orientation.w);
+            msg.pose.pose.orientation = tf2::toMsg(qAligned.inverse());
+
+            // convert to eulers
+            tf2::Quaternion q(msg.pose.pose.orientation.x, msg.pose.pose.orientation.y,
+                msg.pose.pose.orientation.z, msg.pose.pose.orientation.w);
+            std::vector<double> eulersRad;
+            eulersRad.resize(3, 0.0);
+  		    tf2::Matrix3x3(q).getRPY(eulersRad[0], eulersRad[1], eulersRad[2]);
+
+            RCLCPP_INFO_STREAM(node_handle_->get_logger(), "aligned to camera, translation: [" <<
+                msg.pose.pose.position.x << ", " << msg.pose.pose.position.y << ", " << msg.pose.pose.position.z <<
+                "], eulers[" << angles::to_degrees(eulersRad[0]) << ", " << angles::to_degrees(eulersRad[1]) <<
+                ", " << angles::to_degrees(eulersRad[2]) << "]");
+
+            // transform to user specified
+            auto transformed = applyTransform(msg.pose.pose, transform_to_);
+            msg.pose.pose = transformed;
+
+            RCLCPP_INFO_STREAM(node_handle_->get_logger(), "transformed to " << msg.header.frame_id << ", translation: [" <<
+                msg.pose.pose.position.x << ", " << msg.pose.pose.position.y << ", " << msg.pose.pose.position.z <<
+                "], eulers[" << angles::to_degrees(eulersRad[0]) << ", " << angles::to_degrees(eulersRad[1]) <<
+                ", " << angles::to_degrees(eulersRad[2]) << "]");
+
+            // publish
+            pub_rtab_landmark_->publish(msg);
 
             return true;
         }

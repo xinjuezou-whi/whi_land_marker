@@ -12,7 +12,10 @@
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_geometry_msgs</depend>
   <depend>rtabmap_msgs</depend>
+  <depend>angles</depend>
   <depend>whi_interfaces</depend>
 
   <test_depend>ament_lint_auto</test_depend>
