@@ -22,9 +22,6 @@ Changelog:
 #include <std_srvs/srv/trigger.hpp>
 #include <rtabmap_msgs/msg/landmark_detection.hpp>
 
-#include <condition_variable>
-#include <mutex>
-
 namespace whi_land_marker
 {
 	class LandMarker
@@ -42,11 +39,12 @@ namespace whi_land_marker
         void init();
         bool onServiceDetect(const std::shared_ptr<std_srvs::srv::Trigger::Request> Request,
 	        std::shared_ptr<std_srvs::srv::Trigger::Response> Response);
-        void execute(std::shared_ptr<std_srvs::srv::Trigger::Response> Response);
+        bool execute();
         bool activateMarkDetection(bool Flag);
 
     protected:
         std::shared_ptr<rclcpp::Node> node_handle_{ nullptr };
+        std::shared_ptr<rclcpp::Node> node_client_handle_{ nullptr };
         // publisher
         rclcpp::Publisher<rtabmap_msgs::msg::LandmarkDetection>::SharedPtr pub_rtab_landmark_{ nullptr };
         // service client
@@ -60,10 +58,5 @@ namespace whi_land_marker
         int qr_avg_count_{ 5 };
         std::string cam_frame_id_{ "cam" };
         double wait_during_ptz_service_{ 1.0 };
-
-        // synchronizing logic
-        std::mutex mtx_;
-        std::condition_variable cv_;
-        bool activated_{ false };
 	};
 } // namespace whi_land_marker

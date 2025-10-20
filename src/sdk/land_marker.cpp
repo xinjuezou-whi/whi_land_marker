@@ -41,11 +41,14 @@ namespace whi_land_marker
         pub_rtab_landmark_ = node_handle_->create_publisher<rtabmap_msgs::msg::LandmarkDetection>("landmark", 10);
 
         // service clients
-        client_activate_ = node_handle_->create_client<std_srvs::srv::SetBool>("qrcode_activate");
-        client_qr_code_ = node_handle_->create_client<whi_interfaces::srv::WhiSrvQrcode>("qrcode_pose");
+        rclcpp::NodeOptions options;
+        options.use_global_arguments(false); // prevents override by rosargs
+        node_client_handle_ = std::make_shared<rclcpp::Node>("clients", options);
+        client_activate_ = node_client_handle_->create_client<std_srvs::srv::SetBool>("qrcode_activate");
+        client_qr_code_ = node_client_handle_->create_client<whi_interfaces::srv::WhiSrvQrcode>("qrcode_pose");
         node_handle_->declare_parameter<std::string>("ptz_home_service", std::string("/ptz_home"));
         auto servicePtzHome = node_handle_->get_parameter("ptz_home_service").as_string();
-        client_ptz_home_ = node_handle_->create_client<std_srvs::srv::Trigger>(servicePtzHome);
+        client_ptz_home_ = node_client_handle_->create_client<std_srvs::srv::Trigger>(servicePtzHome);
 
         // service
         service_ = node_handle_->create_service<std_srvs::srv::Trigger>("detect_marker",
@@ -55,22 +58,13 @@ namespace whi_land_marker
     bool LandMarker::onServiceDetect(const std::shared_ptr<std_srvs::srv::Trigger::Request> Request,
         std::shared_ptr<std_srvs::srv::Trigger::Response> Response)
     {
-        std::thread{ &LandMarker::execute, this, Response }.detach();
-
-        // // wait until previous is done
-        // {
-        //     std::unique_lock lk(mtx_);
-        //     cv_.wait(lk, [&]{ return carry_on_; });
-        // }
+        Response->success = execute();
 
         return Response->success;
     }
 
-    void LandMarker::execute(std::shared_ptr<std_srvs::srv::Trigger::Response> Response)
+    bool LandMarker::execute()
     {
-        // init status
-        activated_ = false;
-
         // check if the ptz_home service is active
         if (client_ptz_home_)
         {
@@ -81,13 +75,6 @@ namespace whi_land_marker
                     RCLCPP_WARN_STREAM(node_handle_->get_logger(), "\033[1;33m" <<
                         "PTZ service is not available, PTZ homing will be bypassed" << "\033[0m");
                     wait_during_ptz_service_ = 0.0; // only once detection for the efficiency
-
-                    // notify the next procedure
-                    {
-                        std::lock_guard lk(this->mtx_);
-                        activated_ = true;
-                    }
-                    cv_.notify_one();
                 }
             }
 
@@ -95,36 +82,20 @@ namespace whi_land_marker
             {
                 auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
 
-                using ServiceResponseFuture = rclcpp::Client<std_srvs::srv::Trigger>::SharedFuture;
-                auto responseCallback = [this](ServiceResponseFuture Future)
+                auto result = client_ptz_home_->async_send_request(request);
+                if (rclcpp::spin_until_future_complete(node_client_handle_, result) == rclcpp::FutureReturnCode::SUCCESS)
+                {
+                    auto response = result.get(); // only once
+                    if (!response->success)
                     {
-                        if (!Future.get()->success)
-                        {
-                            RCLCPP_WARN_STREAM(this->node_handle_->get_logger(), "\033[1;33m" <<
-                                "failed to activate QR code detection" << "\033[0m");
-                        }
-
-                        // notify the next procedure
-                        {
-                            std::lock_guard lk(this->mtx_);
-                            this->activated_ = true;
-                        }
-                        this->cv_.notify_one();
-                    };
-
-                client_ptz_home_->async_send_request(request, responseCallback);
-                activated_ = false;
+                        RCLCPP_WARN_STREAM(this->node_handle_->get_logger(), "\033[1;33m" <<
+                            "failed to activate QR code detection" << "\033[0m");
+                    }
+                }
             }
         }
         else
         {
-            // notify the next procedure
-            {
-                std::lock_guard lk(this->mtx_);
-                activated_ = true;
-            }
-            cv_.notify_one();
-
             RCLCPP_WARN_STREAM(node_handle_->get_logger(), "\033[1;33m" <<
                 "No home PTZ service" << "\033[0m");
         }
@@ -137,31 +108,22 @@ namespace whi_land_marker
             auto request = std::make_shared<whi_interfaces::srv::WhiSrvQrcode::Request>();
             request->count = qr_avg_count_;
 
-            using ServiceResponseFuture = rclcpp::Client<whi_interfaces::srv::WhiSrvQrcode>::SharedFuture;
-            auto responseCallback = [this, &id, &offset, &eulers](ServiceResponseFuture Future)
+            auto result = client_qr_code_->async_send_request(request);
+            if (rclcpp::spin_until_future_complete(node_client_handle_, result) == rclcpp::FutureReturnCode::SUCCESS)
+            {
+                auto response = result.get(); // only once
+                if (!response->code.empty())
                 {
-                    if (!Future.get()->code.empty())
-                    {
-                        id = stoi(Future.get()->code);
-                        offset = Future.get()->offset_pose;
-                        eulers = Future.get()->eulers_degree;
-                    }
-                    else
-                    {
-                        RCLCPP_WARN_STREAM(this->node_handle_->get_logger(), "\033[1;33m" <<
-                            "failed to estimate QR code pose" << "\033[0m");
-                    }
-
-                    // notify the next procedure
-                    {
-                        std::lock_guard lk(this->mtx_);
-                        this->activated_ = true;
-                    }
-                    this->cv_.notify_one();
-                };
-
-            client_qr_code_->async_send_request(request, responseCallback);
-            activated_ = false;
+                    id = stoi(response->code);
+                    offset = response->offset_pose;
+                    eulers = response->eulers_degree;
+                }
+                else
+                {
+                    RCLCPP_WARN_STREAM(this->node_handle_->get_logger(), "\033[1;33m" <<
+                        "failed to estimate QR code pose" << "\033[0m");
+                }
+            }
 
             activateMarkDetection(false);
         }
@@ -179,62 +141,40 @@ namespace whi_land_marker
             pub_rtab_landmark_->publish(msg);
 
             RCLCPP_INFO_STREAM(node_handle_->get_logger(), "\033[1;32m" <<
-                "get transform from QR code to " << cam_frame_id_ << ", translation: [" << msg.pose.pose.position.x <<
+                "sucessfully get the transform from QR code to " << cam_frame_id_ << ", translation: [" << msg.pose.pose.position.x <<
                 ", " << msg.pose.pose.position.y << ", " << msg.pose.pose.position.z << "], eulers[" << eulers[0] <<
                 ", " << eulers[1] << ", " << eulers[2] << "]" << "\033[0m");
 
-            Response->success = true;
+            return true;
         }
         else
         {
-            Response->success = false;
+            return false;
         }
     }
 
     bool LandMarker::activateMarkDetection(bool Flag)
     {
-        // wait until previous is done
-        {
-            std::unique_lock lk(mtx_);
-            cv_.wait(lk, [&]{ return activated_; });
-        }
-
         bool active = false;
         if (client_activate_)
         {
             auto request = std::make_shared<std_srvs::srv::SetBool::Request>();
             request->data = Flag;
 
-            using ServiceResponseFuture = rclcpp::Client<std_srvs::srv::SetBool>::SharedFuture;
-            auto responseCallback = [this, &active](ServiceResponseFuture Future)
+            auto result = client_activate_->async_send_request(request);
+            if (rclcpp::spin_until_future_complete(node_client_handle_, result) == rclcpp::FutureReturnCode::SUCCESS)
+            {
+                auto response = result.get(); // only once
+                if (response->success)
                 {
-                    auto response = Future.get();
-                    if (response->success)
-                    {
-                        active = true;
-                    }
-                    else
-                    {
-                        RCLCPP_WARN_STREAM(this->node_handle_->get_logger(), "\033[1;33m" <<
-                            "failed to activate QR code detection" << "\033[0m");
-                    }
-
-                    // notify the next procedure
-                    {
-                        std::lock_guard lk(this->mtx_);
-                        this->activated_ = true;
-                    }
-                    this->cv_.notify_one();
-                };
-
-            activated_ = false;
-            client_activate_->async_send_request(request, responseCallback);
-        }
-
-        // wait until previous is done
-        {
-            std::unique_lock lk(mtx_);
-            cv_.wait(lk, [&]{ return activated_; });
+                    active = Flag;
+                }
+                else
+                {
+                    RCLCPP_WARN_STREAM(this->node_handle_->get_logger(), "\033[1;33m" <<
+                        "failed to activate QR code detection" << "\033[0m");
+                }
+            }
         }
 
         return active;
