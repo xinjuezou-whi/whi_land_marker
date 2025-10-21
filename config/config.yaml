@@ -4,6 +4,5 @@ whi_land_marker:
     cam_frame_id: ptz_camera
     ptz_home_service: /ptz_home
     wait_durining_ptz_available: 3.0 # in second
-    rotation_to_camera: [180.0, 0.0, 0.0] # roll,pitch,yaw
-    transform_to: [0.0, 0.0, 0.0, 90.0, 0.0, -90.0] # x,y,z,roll,pitch,yaw
-    landmark_topic: landmark
+    transform_to: [0.0, 0.0, 0.0, -90.0, 0.0, -90.0] # x,y,z,roll,pitch,yaw
+    landmark_topic: /landmark_detection
