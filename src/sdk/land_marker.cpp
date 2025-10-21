@@ -186,25 +186,9 @@ namespace whi_land_marker
             msg.pose.covariance.fill(0.0);
 
             RCLCPP_INFO_STREAM(node_handle_->get_logger(), "\033[1;32m" <<
-                "sucessfully get the transform from QR code to camera, translation: [" << offset.position.x <<
+                "sucessfully get the pose of QR code in camera's frame, translation: [" << offset.position.x <<
                 ", " << offset.position.y << ", " << offset.position.z << "], eulers[" << eulers[0] <<
                 ", " << eulers[1] << ", " << eulers[2] << "]" << "\033[0m");
-
-////////////////////////////////////////////////////////////////
-            geometry_msgs::msg::Pose poseInA;
-            poseInA.position.x = 1.0;
-            poseInA.position.y = 0.0;
-            poseInA.position.z = 0.0;
-
-            tf2::Transform tf0;
-            tf2::fromMsg(transform_to_.transform, tf0);
-            tf2::Transform poseInCamTransform;
-            tf2::convert(poseInA, poseInCamTransform);
-
-            tf2::Transform pose_B_transform = tf0 * poseInCamTransform;
-            geometry_msgs::msg::Transform pose_B = tf2::toMsg(pose_B_transform);
-std::cout << "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx " << pose_B.translation.x << "," << pose_B.translation.y << "," << pose_B.translation.z << std::endl;
-////////////////////////////////////////////////////////////////
 
             // transform to user specified
             auto transformed = applyTransform(offset, transform_to_);
@@ -213,7 +197,7 @@ std::cout << "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx " << pose_B.translation.x << ","
             // convert to eulers
             auto transformedEulers = toEuler(msg.pose.pose.orientation);
 
-            RCLCPP_INFO_STREAM(node_handle_->get_logger(), "QR code transformed to " << msg.header.frame_id << ", translation: [" <<
+            RCLCPP_INFO_STREAM(node_handle_->get_logger(), "the pose of QR code transformed to frame: " << msg.header.frame_id << ", translation: [" <<
                 msg.pose.pose.position.x << ", " << msg.pose.pose.position.y << ", " << msg.pose.pose.position.z <<
                 "], eulers[" << angles::to_degrees(transformedEulers[0]) << ", " << angles::to_degrees(transformedEulers[1]) <<
                 ", " << angles::to_degrees(transformedEulers[2]) << "]");
