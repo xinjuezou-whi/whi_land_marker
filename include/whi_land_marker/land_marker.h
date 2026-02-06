@@ -45,7 +45,6 @@ namespace whi_land_marker
 
     protected:
         std::shared_ptr<rclcpp::Node> node_handle_{ nullptr };
-        std::shared_ptr<rclcpp::Node> node_client_handle_{ nullptr };
         // publisher
         rclcpp::Publisher<rtabmap_msgs::msg::LandmarkDetection>::SharedPtr pub_rtab_landmark_{ nullptr };
         // service client

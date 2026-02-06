@@ -17,15 +17,17 @@ from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import Node
+from launch_ros.descriptions import ParameterFile
+from nav2_common.launch import RewrittenYaml
 
 def generate_launch_description():
     # Input parameters declaration
-    robot_name = LaunchConfiguration('robot_name')
+    namespace = LaunchConfiguration('namespace')
 
     # Declare arguments
-    declare_robot_name_arg = DeclareLaunchArgument(
-        'robot_name', default_value='',
-        description='Robot name'
+    declare_namespace_arg = DeclareLaunchArgument(
+        'namespace', default_value='',
+        description='Top-level namespace'
     )
 
     # Path to config file
@@ -35,18 +37,29 @@ def generate_launch_description():
         'config.yaml'
     ])
 
+    configured_params = ParameterFile(
+        RewrittenYaml(
+            source_file=config_file,
+            root_key=namespace,
+            param_rewrites={},
+            convert_types=True,
+        ),
+        allow_substs=True,
+    )
+
     # Node definition
     start_whi_land_marker_node = Node(
         package='whi_land_marker',
         executable='whi_land_marker_node',
         name='whi_land_marker',
+        namespace=namespace,
         output='screen',
         parameters=[
-            config_file,
+            configured_params,
         ]
     )
 
     return LaunchDescription([
-        declare_robot_name_arg,
+        declare_namespace_arg,
         start_whi_land_marker_node
     ])

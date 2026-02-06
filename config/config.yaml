@@ -2,7 +2,7 @@ whi_land_marker:
   ros__parameters:
     qr_avg_count: 5
     cam_frame_id: ptz_camera
-    ptz_home_service: /ptz_home
+    ptz_home_service: ptz_home
     wait_durining_ptz_available: 3.0 # in second
     transform_to: [0.0, 0.0, 0.0, -90.0, 0.0, -90.0] # x,y,z,roll,pitch,yaw
-    landmark_topic: /landmark_detection
+    landmark_topic: landmark_detection

@@ -61,14 +61,11 @@ namespace whi_land_marker
         pub_rtab_landmark_ = node_handle_->create_publisher<rtabmap_msgs::msg::LandmarkDetection>(landmarkTopic, 10);
 
         // service clients
-        rclcpp::NodeOptions options;
-        options.use_global_arguments(false); // prevents override by rosargs
-        node_client_handle_ = std::make_shared<rclcpp::Node>("clients", options);
-        client_activate_ = node_client_handle_->create_client<std_srvs::srv::SetBool>("qrcode_activate");
-        client_qr_code_ = node_client_handle_->create_client<whi_interfaces::srv::WhiSrvQrcode>("qrcode_pose");
-        node_handle_->declare_parameter<std::string>("ptz_home_service", std::string("/ptz_home"));
+        client_activate_ = node_handle_->create_client<std_srvs::srv::SetBool>("qrcode_activate");
+        client_qr_code_ = node_handle_->create_client<whi_interfaces::srv::WhiSrvQrcode>("qrcode_pose");
+        node_handle_->declare_parameter<std::string>("ptz_home_service", std::string("ptz_home"));
         auto servicePtzHome = node_handle_->get_parameter("ptz_home_service").as_string();
-        client_ptz_home_ = node_client_handle_->create_client<std_srvs::srv::Trigger>(servicePtzHome);
+        client_ptz_home_ = node_handle_->create_client<std_srvs::srv::Trigger>(servicePtzHome);
 
         // service
         service_ = node_handle_->create_service<std_srvs::srv::Trigger>("detect_marker",
@@ -130,7 +127,7 @@ namespace whi_land_marker
                 auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
 
                 auto result = client_ptz_home_->async_send_request(request);
-                if (rclcpp::spin_until_future_complete(node_client_handle_, result,
+                if (rclcpp::spin_until_future_complete(node_handle_, result,
                     std::chrono::duration<double>(wait_during_ptz_service_)) == rclcpp::FutureReturnCode::SUCCESS)
                 {
                     auto response = result.get(); // only once
@@ -157,7 +154,7 @@ namespace whi_land_marker
             request->count = qr_avg_count_;
 
             auto result = client_qr_code_->async_send_request(request);
-            if (rclcpp::spin_until_future_complete(node_client_handle_, result) == rclcpp::FutureReturnCode::SUCCESS)
+            if (rclcpp::spin_until_future_complete(node_handle_, result) == rclcpp::FutureReturnCode::SUCCESS)
             {
                 auto response = result.get(); // only once
                 if (!response->code.empty())
@@ -222,7 +219,7 @@ namespace whi_land_marker
             request->data = Flag;
 
             auto result = client_activate_->async_send_request(request);
-            if (rclcpp::spin_until_future_complete(node_client_handle_, result) == rclcpp::FutureReturnCode::SUCCESS)
+            if (rclcpp::spin_until_future_complete(node_handle_, result) == rclcpp::FutureReturnCode::SUCCESS)
             {
                 auto response = result.get(); // only once
                 if (response->success)
