@@ -126,17 +126,16 @@ namespace whi_land_marker
             {
                 auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
 
-                auto result = client_ptz_home_->async_send_request(request);
-                if (rclcpp::spin_until_future_complete(node_handle_, result,
-                    std::chrono::duration<double>(wait_during_ptz_service_)) == rclcpp::FutureReturnCode::SUCCESS)
-                {
-                    auto response = result.get(); // only once
-                    if (!response->success)
+                client_ptz_home_->async_send_request(
+                    request,
+                    [this, request](rclcpp::Client<std_srvs::srv::Trigger>::SharedFuture future)
                     {
-                        RCLCPP_WARN_STREAM(node_handle_->get_logger(), "\033[1;33m" <<
-                            "failed to activate QR code detection" << "\033[0m");
-                    }
-                }
+                        if (!future.get()->success)
+                        {
+                            RCLCPP_WARN_STREAM(node_handle_->get_logger(), "\033[1;33m" <<
+                                "failed to activate QR code detection" << "\033[0m");
+                        }
+                    });
             }
         }
         else
@@ -153,22 +152,22 @@ namespace whi_land_marker
             auto request = std::make_shared<whi_interfaces::srv::WhiSrvQrcode::Request>();
             request->count = qr_avg_count_;
 
-            auto result = client_qr_code_->async_send_request(request);
-            if (rclcpp::spin_until_future_complete(node_handle_, result) == rclcpp::FutureReturnCode::SUCCESS)
-            {
-                auto response = result.get(); // only once
-                if (!response->code.empty())
+            client_qr_code_->async_send_request(
+                request,
+                [this, request, &id, &offset, &eulers](rclcpp::Client<whi_interfaces::srv::WhiSrvQrcode>::SharedFuture future)
                 {
-                    id = stoi(response->code);
-                    offset = response->offset_pose.pose;
-                    eulers = response->eulers_degree;
-                }
-                else
-                {
-                    RCLCPP_WARN_STREAM(node_handle_->get_logger(), "\033[1;33m" <<
-                        "failed to estimate QR code pose" << "\033[0m");
-                }
-            }
+                    if (!future.get()->code.empty())
+                    {
+                        id = stoi(future.get()->code);
+                        offset = future.get()->offset_pose.pose;
+                        eulers = future.get()->eulers_degree;
+                    }
+                    else
+                    {
+                        RCLCPP_WARN_STREAM(node_handle_->get_logger(), "\033[1;33m" <<
+                            "failed to estimate QR code pose" << "\033[0m");
+                    }
+                });
 
             activateMarkDetection(false);
         }
@@ -218,20 +217,20 @@ namespace whi_land_marker
             auto request = std::make_shared<std_srvs::srv::SetBool::Request>();
             request->data = Flag;
 
-            auto result = client_activate_->async_send_request(request);
-            if (rclcpp::spin_until_future_complete(node_handle_, result) == rclcpp::FutureReturnCode::SUCCESS)
-            {
-                auto response = result.get(); // only once
-                if (response->success)
+            client_activate_->async_send_request(
+                request,
+                [this, request, &active, Flag](rclcpp::Client<std_srvs::srv::SetBool>::SharedFuture future)
                 {
-                    active = Flag;
-                }
-                else
-                {
-                    RCLCPP_WARN_STREAM(node_handle_->get_logger(), "\033[1;33m" <<
-                        "failed to activate QR code detection" << "\033[0m");
-                }
-            }
+                    if (future.get()->success)
+                    {
+                        active = Flag;
+                    }
+                    else
+                    {
+                        RCLCPP_WARN_STREAM(node_handle_->get_logger(), "\033[1;33m" <<
+                            "failed to activate QR code detection" << "\033[0m");
+                    }
+                });
         }
 
         return active;
